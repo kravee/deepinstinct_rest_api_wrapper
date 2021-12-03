@@ -434,8 +434,19 @@ def get_policies(include_policy_data=False, include_allow_deny_lists=False, keep
                     policy_data = response.json()['data']
                 policy.update(policy_data)
 
-    # APPEND ALLOW-LIST AND DENY-LIST DATA (IF ENABLED)
+    # APPEND ALLOW-LIST, DENY-LIST, AND EXCLUSION DATA (IF ENABLED)
     if include_allow_deny_lists:
+
+        allow_deny_and_exclusion_list_types = [
+            'allow-list/hashes',
+            'allow-list/paths',
+            'allow-list/certificates',
+            'allow-list/process_paths',
+            'allow-list/scripts',
+            'deny-list/hashes',
+            'exclusion-list/folder_path',
+            'exclusion-list/process_path'
+        ]
 
         # Iterate through policy list
         for policy in policies:
@@ -443,45 +454,17 @@ def get_policies(include_policy_data=False, include_allow_deny_lists=False, keep
             # Extract the policy id, which is used in subsequent requests
             policy_id = policy['id']
 
-            # Each of the 6 code blocks below extract a specific type of allow-
-            # or deny-list data from the server and append it to the policy
-            # in policies (the collected data).
+            #create a dictionary in the policy to store this data
+            policy['allow_deny_and_exclusion_lists'] = {}
 
-            request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/allow-list/hashes'
-            response = requests.get(request_url, headers=headers)
-            if response.status_code == 200:
-                allow_list_hashes = response.json()
-                policy['allow_list_static_analysis_hashes'] = allow_list_hashes['items']
+            #iterate through list types to migrate
+            for list_type in allow_deny_and_exclusion_list_types:
 
-            request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/allow-list/paths'
-            response = requests.get(request_url, headers=headers)
-            if response.status_code == 200:
-                allow_list_paths = response.json()
-                policy['allow_list_static_analysis_paths'] = allow_list_paths['items']
-
-            request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/allow-list/certificates'
-            response = requests.get(request_url, headers=headers)
-            if response.status_code == 200:
-                allow_list_certificates = response.json()
-                policy['allow_list_static_analysis_certificates'] = allow_list_certificates['items']
-
-            request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/allow-list/process_paths'
-            response = requests.get(request_url, headers=headers)
-            if response.status_code == 200:
-                allow_list_process_paths = response.json()
-                policy['allow_list_behavioral_analysis_process_paths'] = allow_list_process_paths['items']
-
-            request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/allow-list/scripts'
-            response = requests.get(request_url, headers=headers)
-            if response.status_code == 200:
-                allow_list_scripts = response.json()
-                policy['allow_list_script_control'] = allow_list_scripts['items']
-
-            request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/deny-list/hashes'
-            response = requests.get(request_url, headers=headers)
-            if response.status_code == 200:
-                deny_list_hashes = response.json()
-                policy['deny_list_static_analysis_hashes'] = deny_list_hashes['items']
+                request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/{list_type}'
+                response = requests.get(request_url, headers=headers)
+                if response.status_code == 200:
+                    response = response.json()
+                    policy['allow_deny_and_exclusion_lists'][list_type] = response
 
     # RETURN THE COLLECTED DATA
     return policies
