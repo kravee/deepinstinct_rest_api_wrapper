@@ -739,7 +739,7 @@ def get_event(event_id, suspicious=False):
         print('ERROR: Unexpected return code', str(response.status_code), 'on request to', request_url)
         return []
 
-def create_policy(name, base_policy_id, comment=''):
+def create_policy(name, base_policy_id, comment='', quiet_mode=False):
 
     #define headers
     headers = {'accept': 'application/json', 'Authorization': key}
@@ -756,7 +756,8 @@ def create_policy(name, base_policy_id, comment=''):
     # Check response code
     if response.status_code == 200:
         response = response.json()
-        print('INFO: Policy', response['id'], response['name'], 'created')
+        if not quiet_mode:
+            print('INFO: Policy', response['id'], response['name'], 'created')
         return response
     else:
         print('ERROR: Unexpected return code', response.status_code,
