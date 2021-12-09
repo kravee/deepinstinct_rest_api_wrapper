@@ -804,7 +804,16 @@ def export_events(minimum_event_id=0, suspicious=False, flatten_device_info=True
         file_name = f'events_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".",1)[0]}.xlsx'
         if suspicious:
             file_name = f'suspicious_{file_name}'
-        columns = ['id', 'status', 'action', 'type', 'trigger', 'threat_severity', 'file_hash', 'file_archive_hash', 'path', 'timestamp', 'insertion_timestamp', 'close_timestamp', 'close_trigger', 'last_reoccurrence', 'reoccurrence_count', 'last_action', 'device_id', 'recorded_device_info.os', 'recorded_device_info.mac_address', 'recorded_device_info.hostname', 'recorded_device_info.tag', 'recorded_device_info.group_name', 'recorded_device_info.policy_name', 'recorded_device_info.tenant_name', 'comment', 'mitre_classifications', 'file_size', 'file_status', 'sandbox_status', 'msp_name', 'msp_id', 'tenant_name', 'tenant_id']
+
+        #this logic improves resiliency case the product API adds/removes columns from event data
+        export_column_names = ['id', 'status', 'action', 'type', 'trigger', 'threat_severity', 'file_hash', 'deep_classification', 'file_archive_hash', 'path', 'timestamp', 'insertion_timestamp', 'close_timestamp', 'close_trigger', 'last_reoccurrence', 'reoccurrence_count', 'last_action', 'device_id', 'recorded_device_info.os', 'recorded_device_info.mac_address', 'recorded_device_info.hostname', 'recorded_device_info.tag', 'recorded_device_info.group_name', 'recorded_device_info.policy_name', 'recorded_device_info.tenant_name', 'comment', 'mitre_classifications', 'file_size', 'file_status', 'sandbox_status', 'msp_name', 'msp_id', 'tenant_name', 'tenant_id']
+        events_df_column_names = list(events_df.columns.values)
+        columns = []
+        for column_name in export_column_names:
+            if column_name in events_df_column_names:
+                columns.append(column_name)
+
+        #now that we have what we know is a valid list of coulmns, proceed
         events_df.to_excel(f'{folder_name}/{file_name}', index=False, sheet_name='Event_Data', columns=columns)
         print('INFO:', len(events), 'events were exported to disk as:', f'{folder_name}/{file_name}')
     else:
