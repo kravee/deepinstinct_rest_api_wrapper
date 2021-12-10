@@ -26,7 +26,7 @@
 # 3. Optionally implement event filters by modifying the code below which
 #    organizes events into included_events | excluded_events
 # 4. Optionally modify the criteria for determining prevention readiness:
-#    min_days_since_deployment,max_days_since_last_contect,max_weekly_event_rate
+#    min_days_since_deployment,max_days_since_last_contact,max_weekly_event_rate
 # 5. Save modified script (if any changes were made)
 # 6. Open a Command Prompt window, CD to the directory containing the 2 PY
 #    files, and run this command: python prevention_readiness.py
@@ -41,7 +41,7 @@ from dateutil import parser
 
 #Criteria for determining yes/no on whether an endpoint is ready for prevention
 min_days_since_deployment = '10'
-max_days_since_last_contect = '3'
+max_days_since_last_contact = '3'
 max_weekly_event_rate = '2'
 
 #server config
@@ -172,7 +172,7 @@ print('INFO: Evaluating devices to determine prevention readiness and recoding i
 for device in devices:
     device['ready_for_prevention'] = False
     if device['days_since_deployment'] >= int(min_days_since_deployment):
-        if device['last_contact_days_ago'] <= int(max_days_since_last_contect):
+        if device['last_contact_days_ago'] <= int(max_days_since_last_contact):
             if device['weekly_event_rate'] <= int(max_weekly_event_rate):
                 device['ready_for_prevention'] = True
 
@@ -218,7 +218,7 @@ print('-----')
 print('CRITERIA USED IN ABOVE CALCULATIONS:')
 print('-----')
 print('min_days_since_deployment:', min_days_since_deployment)
-print('max_days_since_last_contect:', max_days_since_last_contect)
+print('max_days_since_last_contact:', max_days_since_last_contact)
 print('max_weekly_event_rate:', max_weekly_event_rate)
 print()
 print('The', len(devices_ready_for_prevention), 'devices ready to move to prevention are currently in the following', len(groups_with_devices_ready_for_prevention), 'Device Group(s):')
