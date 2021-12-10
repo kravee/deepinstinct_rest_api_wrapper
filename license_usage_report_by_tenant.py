@@ -1,4 +1,4 @@
-import pandas, datetime, deepinstinct30 as di
+import pandas, datetime, deepinstinct30 as di, sys
 
 # Optional hardcoded config - if not provided, you'll be prompted at runtime
 di.fqdn = 'SERVER-NAME.customers.deepinstinctweb.com'
@@ -7,26 +7,37 @@ include_policy_mode_counts = ''
 
 # Validate config and prompt if not provided above
 while di.fqdn in ('SERVER-NAME.customers.deepinstinctweb.com', ''):
-    di.fqdn = input('FQDN of DI Server? [foo.bar.deepinstinctweb.com] ')
+    di.fqdn = input('FQDN of [multi-tenancy] DI Server? [foo.bar.deepinstinctweb.com] ')
 while di.key in ('API-KEY', ''):
-    di.key = input('API Key? ')
+    di.key = input('API Key with visibility into all MSPs and Tenants on the server? ')
 while include_policy_mode_counts not in (True, False):
     input_response = input('Include prevention/detection mode counts? [Yes | No] ')
     if input_response.lower() == 'yes':
         include_policy_mode_counts = True
     elif input_response.lower() == 'no':
         include_policy_mode_counts = False
+    else:
+        print('ERROR: Invalid response:', input_response)
+        sys.exit(0)
 
-
-# Get tenants, msps, and devices from DI server
+#get tenant data from server
 print('INFO: Getting Tenant data from server')
 tenants = di.get_tenants()
+
+#confirm that we got valid data back; if not, abort script
+if len(tenants) == 0:
+    print('ERROR: No Tenants returned. Check that server is multi-tenancy enabled and that your API key has the appropriate permissions.')
+    sys.exit(0)
+
+#get msp data from server
 print('INFO: Getting MSP data from server')
 msps = di.get_msps()
+
+# get device data from server
 print('INFO: Getting Device data from server')
 devices = di.get_devices(include_deactivated=False)
 
-# Look up MSP name for each tenant and add it to the tenants data
+# add msp_name to tenant data
 print('INFO: Adding MSP names to Tenant data')
 for tenant in tenants:
     for msp in msps:

@@ -255,22 +255,20 @@ def enable_upgrades_for_list_of_policy_ids(policy_ids, automatic_upgrade=True):
     return str(modified_policy_counter) + ' policies modified to set automatic_upgrade to ' + str(automatic_upgrade)
 
 
-# Returns a list of all visible Tenants
+# Returns list of visible Tenants
 def get_tenants():
-    # Calculate headers and url
+    #get data
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/multitenancy/tenant/'
-
-    # Get data from server
     response = requests.get(request_url, headers=headers)
 
-    #check response code, parse JSON if valid
+    #return data
     if response.status_code == 200:
-        tenants = response.json()['tenants']
+        #return list of tenants
+        return response.json()['tenants']
     else:
-        tenants = {'tenants': []}
-
-    return tenants
+        #in case of error return an empty list
+        return []
 
 
 # Returns a list of all visible Devices
@@ -470,24 +468,20 @@ def get_policies(include_policy_data=False, include_allow_deny_lists=False, keep
     return policies
 
 
-# Returns a list of all MSPs on the server
+# Returns list of visible MSPs
 def get_msps():
-    # Calculate headers and url
+    #get data
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/multitenancy/msp/'
-
-    # Get data from server
     response = requests.get(request_url, headers=headers)
 
-    #check response code, parse JSON if valid
+    #return data
     if response.status_code == 200:
-        msps = response.json()['msps']
-    #in case of error, create empty list in place of msps
+        #return list of msps
+        return response.json()['msps']
     else:
-        msps = {'msps': []}
-
-    #return the MSPs data
-    return msps
+        #in case of error return an empty list
+        return []
 
 
 # Create a new MSP
