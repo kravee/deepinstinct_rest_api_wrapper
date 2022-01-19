@@ -24,31 +24,34 @@
 # issue to tech support you must remove the API Wrapper layer and recreate the
 # problem against the raw/pure DI REST API.
 #
+import sys
 
 debug_mode = False
 
 # Import various libraries used by one or more method below.
-import requests, json, datetime, pandas, re, ipaddress, time, os
-#If any of the above throw import errors, try running 'pip install library_name'
-#If that doesn't fix the problem I recommend to search Google for the error
-#that you are getting.
+import requests, json, datetime, pandas, re, ipaddress, time, os, logging
+
+
+# If any of the above throw import errors, try running 'pip install library_name'
+# If that doesn't fix the problem I recommend to search Google for the error
+# that you are getting.
 
 
 # Export Device List to disk in Excel format
-def export_devices(include_deactivated=False):
-    #get the devices from server
+def export_devices(fqdn, key, include_deactivated=False):
+    # get the devices from server
     devices = get_devices(include_deactivated=include_deactivated)
-    #convert to Pandas Data Frame
+    # convert to Pandas Data Frame
     devices_df = pandas.DataFrame(devices)
-    #calculate timestamp
+    # calculate timestamp
     timestamp = datetime.datetime.today().strftime('%Y-%m-%d_%H.%M')
-    #calculate folder name
-    folder_name = create_export_folder()
-    #calculate file name
-    file_name = f'device_list_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
-    #write data to disk
+    # calculate folder name
+    folder_name = create_export_folder(fqdn, key)
+    # calculate file name
+    file_name = f'device_list_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
+    # write data to disk
     devices_df.to_excel(f'{folder_name}/{file_name}', index=False)
-    #return confirmation message
+    # return confirmation message
     return ('INFO: ' + str(len(devices)) + f' devices written to {folder_name}/{file_name}')
 
 
@@ -58,7 +61,8 @@ def export_devices(include_deactivated=False):
 # may be multiple matches found, and in that case all will be moved.
 def move_devices(search_list, group_name, regex_hostname_search=False, cidr_search=False):
     # Get device IDs
-    device_ids = get_device_ids(search_list=search_list, regex_hostname_search=regex_hostname_search, cidr_search=cidr_search)
+    device_ids = get_device_ids(search_list=search_list, regex_hostname_search=regex_hostname_search,
+                                cidr_search=cidr_search)
     # Lookup to get Device Group ID
     group_id = get_group_id(group_name=group_name, exclude_default_groups=True)
     # Execute the move
@@ -67,28 +71,28 @@ def move_devices(search_list, group_name, regex_hostname_search=False, cidr_sear
 
 # Accepts list of hostnames, removes any explicit/manual group assignment.
 def move_devices_to_automatic_assignment(hostnames):
-    #Get all devices from server
+    # Get all devices from server
     devices = get_devices(include_deactivated=False)
 
-    #Establish a list to store the devices that match the search list
+    # Establish a list to store the devices that match the search list
     devices_to_move = []
 
-    #Search the full device list and pull out those that match our search list
+    # Search the full device list and pull out those that match our search list
     for device in devices:
         if device['hostname'] in hostnames:
             devices_to_move.append(device)
 
-    #Iterate through the list of matching devices
+    # Iterate through the list of matching devices
     for device in devices_to_move:
-        #Remove the device from it's current group
+        # Remove the device from it's current group
         remove_devices_from_group([device['id']], device['group_id'])
 
-    #Return a message indicating how many devices were moved
-    return(str(len(devices_to_move)) + ' devices were moved to automatic assignment')
+    # Return a message indicating how many devices were moved
+    return (str(len(devices_to_move)) + ' devices were moved to automatic assignment')
 
 
-#Archives (hides from GUI and API) a list of devices
-def archive_devices(device_ids, unarchive=False):
+# Archives (hides from GUI and API) a list of devices
+def archive_devices(fqdn, key, device_ids, unarchive=False):
     # Calculate headers and URL
     headers = {'Content-Type': 'application/json', 'Authorization': key}
     if unarchive:
@@ -117,7 +121,7 @@ def unarchive_devices(device_ids):
 
 
 # Write Device Policy data to disk in MS Excel format.
-def export_policies(include_allow_deny_lists=True):
+def export_policies(fqdn, key, include_allow_deny_lists=True):
     # Get all policies from server, including auxilary data
     policies = get_policies(include_policy_data=True, include_allow_deny_lists=include_allow_deny_lists)
 
@@ -155,35 +159,36 @@ def export_policies(include_allow_deny_lists=True):
 
     # Export data to disk
 
-    folder_name = create_export_folder()
+    folder_name = create_export_folder(fqdn, key)
 
-    file_name = f'windows_policies_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
+    file_name = f'windows_policies_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
     windows_policies_df.to_excel(f'{folder_name}/{file_name}', index=False)
     print('INFO:', len(windows_policies), 'policies written to', f'{folder_name}/{file_name}')
 
-    file_name = f'mac_policies.xlsx_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
+    file_name = f'mac_policies.xlsx_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
     mac_policies_df.to_excel(f'{folder_name}/{file_name}', index=False)
     print('INFO:', len(mac_policies), 'policies written to', f'{folder_name}/{file_name}')
 
-    file_name = f'ios_policies.xlsx_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
+    file_name = f'ios_policies.xlsx_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
     ios_policies_df.to_excel(f'{folder_name}/{file_name}', index=False)
     print('INFO:', len(ios_policies), 'policies written to', f'{folder_name}/{file_name}')
 
-    file_name = f'android_policies_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
+    file_name = f'android_policies_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
     android_policies_df.to_excel(f'{folder_name}/{file_name}', index=False)
     print('INFO:', len(android_policies), 'policies written to', f'{folder_name}/{file_name}')
 
-    file_name = f'chrome_policies_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
+    file_name = f'chrome_policies_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
     chrome_policies_df.to_excel(f'{folder_name}/{file_name}', index=False)
     print('INFO:', len(chrome_policies), 'policies written to', f'{folder_name}/{file_name}')
 
-    file_name = f'network_agentless_policies_{timestamp}_{fqdn.split(".",1)[0]}.xlsx'
+    file_name = f'network_agentless_policies_{timestamp}_{fqdn.split(".", 1)[0]}.xlsx'
     network_agentless_policies_df.to_excel(f'{folder_name}/{file_name}', index=False)
     print('INFO:', len(network_agentless_policies), 'policies written to', f'{folder_name}/{file_name}')
 
 
 # Enable automatic upgrade setting in policies
-def enable_upgrades(platforms=['WINDOWS','MAC'], automatic_upgrade=True, return_modified_policies_id_list=False):
+def enable_upgrades(fqdn, key, platforms=['WINDOWS', 'MAC'], automatic_upgrade=True,
+                    return_modified_policies_id_list=False):
     # Get list of policies
     policies = get_policies()
 
@@ -215,7 +220,8 @@ def enable_upgrades(platforms=['WINDOWS','MAC'], automatic_upgrade=True, return_
                 modified_policy_counter += 1
                 modified_policies_id_list.append(policy['id'])
 
-    return_string = str(modified_policy_counter) + ' policies modified to set automatic_upgrade to ' + str(automatic_upgrade)
+    return_string = str(modified_policy_counter) + ' policies modified to set automatic_upgrade to ' + str(
+        automatic_upgrade)
 
     if return_modified_policies_id_list:
         print(return_string)
@@ -225,13 +231,13 @@ def enable_upgrades(platforms=['WINDOWS','MAC'], automatic_upgrade=True, return_
 
 
 # Disable automatic upgrade setting in policies
-def disable_upgrades(platforms=['WINDOWS','MAC'], return_modified_policies_id_list=False):
-    return enable_upgrades(platforms=platforms, automatic_upgrade=False, return_modified_policies_id_list=return_modified_policies_id_list)
+def disable_upgrades(platforms=['WINDOWS', 'MAC'], return_modified_policies_id_list=False):
+    return enable_upgrades(platforms=platforms, automatic_upgrade=False,
+                           return_modified_policies_id_list=return_modified_policies_id_list)
 
 
 # Enables upgrades for a list of policy IDs
-def enable_upgrades_for_list_of_policy_ids(policy_ids, automatic_upgrade=True):
-
+def enable_upgrades_for_list_of_policy_ids(fqdn, key, policy_ids, automatic_upgrade=True):
     # Establish a counter of how many policies were modified (used in return)
     modified_policy_counter = 0
 
@@ -256,29 +262,29 @@ def enable_upgrades_for_list_of_policy_ids(policy_ids, automatic_upgrade=True):
 
 
 # Returns list of visible Tenants
-def get_tenants():
-    #get data
+def get_tenants(fqdn, key):
+    # get data
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/multitenancy/tenant/'
     response = requests.get(request_url, headers=headers)
 
-    #return data
+    # return data
     if response.status_code == 200:
-        #return list of tenants
+        # return list of tenants
         return response.json()['tenants']
     else:
-        #in case of error return an empty list
+        # in case of error return an empty list
         return []
 
 
 # Returns a list of all visible Devices
-def get_devices(include_deactivated=True):
+def get_devices(fqdn, key, include_deactivated=True):
     # CREATE VARIABLES
-    #cursor to keep track of highest device id returned
+    # cursor to keep track of highest device id returned
     last_id = 0
-    #list to collect the devices
+    # list to collect the devices
     collected_devices = []
-    #static set of headers for requests in this method
+    # static set of headers for requests in this method
     headers = {'accept': 'application/json', 'Authorization': key}
 
     # The method we are using (/api/v1/devices) returns up to 50 devices at a
@@ -288,27 +294,27 @@ def get_devices(include_deactivated=True):
 
     error_count = 0
     # COLLECT DATA
-    while last_id != None and error_count < 10: #loop until all visible devices have been collected
-        #calculate URL for request
+    while last_id != None and error_count < 10:  # loop until all visible devices have been collected
+        # calculate URL for request
         request_url = f'https://{fqdn}/api/v1/devices?after_device_id={last_id}'
-        #make request, store response
+        # make request, store response
         response = requests.get(request_url, headers=headers)
         if response.status_code == 200:
-            response = response.json() #convert to Python list
+            response = response.json()  # convert to Python list
             if 'last_id' in response:
-                last_id = response['last_id'] #save returned last_id for reuse on next request
-            else: #added this to handle issue where some server versions fail to return last_id on final batch of devices
+                last_id = response['last_id']  # save returned last_id for reuse on next request
+            else:  # added this to handle issue where some server versions fail to return last_id on final batch of devices
                 last_id = None
             if 'devices' in response:
-                devices = response['devices'] #extract devices from response
-                for device in devices: #iterate through the list of devices
+                devices = response['devices']  # extract devices from response
+                for device in devices:  # iterate through the list of devices
                     if device['license_status'] == 'ACTIVATED' or include_deactivated:
-                        collected_devices.append(device) #add to collected devices
+                        collected_devices.append(device)  # add to collected devices
         else:
             print('WARNING: Unexpected return code', response.status_code,
-            'on request to\n', request_url, '\nwith headers\n', headers)
-            error_count += 1  #increment error counter
-            time.sleep(10) #wait before trying request again
+                  'on request to\n', request_url, '\nwith headers\n', headers)
+            error_count += 1  # increment error counter
+            time.sleep(10)  # wait before trying request again
 
     # When while loop exists, we know we have collected all visible data
 
@@ -330,24 +336,24 @@ def get_device_ids(search_list, regex_hostname_search=False, cidr_search=False):
     # Regex-based matching on hostname
     if regex_hostname_search:
         for device in devices:
-            for regex in search_list: #for each regex...
-                if re.match(regex, device['hostname']): #check if hostname matches
-                    if device['id'] not in device_ids: #avoid duplicates
-                        device_ids.append(device['id']) #append id to search results
+            for regex in search_list:  # for each regex...
+                if re.match(regex, device['hostname']):  # check if hostname matches
+                    if device['id'] not in device_ids:  # avoid duplicates
+                        device_ids.append(device['id'])  # append id to search results
 
     # IP range (CIDR) matching
     elif cidr_search:
-        for cidr in search_list: #for each cidr in the search list...
+        for cidr in search_list:  # for each cidr in the search list...
             for device in devices:
                 if ipaddress.ip_address(device['ip_address']) in ipaddress.ip_network(cidr):
-                    if device['id'] not in device_ids: #avoid duplicates
-                        device_ids.append(device['id']) #append id to search results
+                    if device['id'] not in device_ids:  # avoid duplicates
+                        device_ids.append(device['id'])  # append id to search results
 
     # Hostname search (exact match only)
     else:
         for device in devices:
             if device['hostname'] in search_list:
-                device_ids.append(device['id']) #append id to search results
+                device_ids.append(device['id'])  # append id to search results
 
     # RETURN THE SEARCH RESULTS
     return device_ids
@@ -355,19 +361,18 @@ def get_device_ids(search_list, regex_hostname_search=False, cidr_search=False):
 
 # Translate a Device Group name into a Device Group IP
 def get_group_id(group_name, exclude_default_groups=False):
-
     # Get the groups from the server
     groups = get_groups(exclude_default_groups=exclude_default_groups)
 
-    #Iterate through the groups looking for match on group name
+    # Iterate through the groups looking for match on group name
     for group in groups:
-        if group['name'].lower() == group_name.lower():  #case-insensitive
-            return group['id'] #match was found; return the id of that match
-    return None #no match found
+        if group['name'].lower() == group_name.lower():  # case-insensitive
+            return group['id']  # match was found; return the id of that match
+    return None  # no match found
 
 
 # Adds a list of Devices to a Device Group
-def add_devices_to_group(device_ids, group_id, remove=False):
+def add_devices_to_group(fqdn, key, device_ids, group_id, remove=False):
     # Calculate headers and URL
     headers = {'Content-Type': 'application/json', 'Authorization': key}
     if remove:
@@ -380,13 +385,13 @@ def add_devices_to_group(device_ids, group_id, remove=False):
 
     # Send to server, return confirmation if successful
     response = requests.post(request_url, json=payload, headers=headers)
-    if response.status_code == 204: #expected return code
+    if response.status_code == 204:  # expected return code
         if remove:
             return str(len(device_ids)) + ' devices removed from group ' + str(group_id)
         else:
             return str(len(device_ids)) + ' devices added to group ' + str(group_id)
     else:
-        return None #something went wrong
+        return None  # something went wrong
 
 
 # Removes a list of Devices from a Device Group
@@ -395,7 +400,8 @@ def remove_devices_from_group(device_ids, group_id):
 
 
 # Collect and return list of Device Policies.
-def get_policies(include_policy_data=False, include_allow_deny_lists=False, keep_data_encapsulated=False, msp_id='ALL'):
+def get_policies(fqdn, key, include_policy_data=False, include_allow_deny_lists=False, keep_data_encapsulated=False,
+                 msp_id='ALL'):
     # GET POLICIES (basic data only)
 
     # Calculate headers and URL
@@ -452,10 +458,10 @@ def get_policies(include_policy_data=False, include_allow_deny_lists=False, keep
             # Extract the policy id, which is used in subsequent requests
             policy_id = policy['id']
 
-            #create a dictionary in the policy to store this data
+            # create a dictionary in the policy to store this data
             policy['allow_deny_and_exclusion_lists'] = {}
 
-            #iterate through list types to migrate
+            # iterate through list types to migrate
             for list_type in allow_deny_and_exclusion_list_types:
 
                 request_url = f'https://{fqdn}/api/v1/policies/{policy_id}/{list_type}'
@@ -469,23 +475,23 @@ def get_policies(include_policy_data=False, include_allow_deny_lists=False, keep
 
 
 # Returns list of visible MSPs
-def get_msps():
-    #get data
+def get_msps(fqdn, key):
+    # get data
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/multitenancy/msp/'
     response = requests.get(request_url, headers=headers)
 
-    #return data
+    # return data
     if response.status_code == 200:
-        #return list of msps
+        # return list of msps
         return response.json()['msps']
     else:
-        #in case of error return an empty list
+        # in case of error return an empty list
         return []
 
 
 # Create a new MSP
-def create_msp(msp_name, license_limit):
+def create_msp(fqdn, key, msp_name, license_limit):
     # Calculate headers, URL, and payload
     headers = {'Content-Type': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/multitenancy/msp/'
@@ -504,11 +510,11 @@ def create_msp(msp_name, license_limit):
     elif response.status_code == 400:
         return 'ERROR: Insufficient Licenses'
     else:
-        return 'ERROR: Unexpected return code '+ str(response.status_code)
+        return 'ERROR: Unexpected return code ' + str(response.status_code)
 
 
 # Delete an MSP based on provided name
-def delete_msp(msp_name):
+def delete_msp(fqdn, key, msp_name):
     # Get the list of MSPs
     msps = get_msps()
 
@@ -537,23 +543,23 @@ def delete_msp(msp_name):
     else:
         return 'ERROR: Unexpected return code ' + str(response.status_code)
 
-# Remotely uninstall a device
-def remove_device(device, device_id_only=False):
 
-    #PROCESS INPUT
+# Remotely uninstall a device
+def remove_device(fqdn, key, device, device_id_only=False):
+    # PROCESS INPUT
     if device_id_only:
-        #the input was the actual device id
+        # the input was the actual device id
         device_id = device
     else:
-        #the input was a device dictionary; extract the device id from it
+        # the input was a device dictionary; extract the device id from it
         device_id = device['id']
 
-    #UNINSTALL THE DEVICE
+    # UNINSTALL THE DEVICE
     request_url = f'https://{fqdn}/api/v1/devices/{device_id}/actions/remove'
     headers = {'Authorization': key}
     response = requests.post(request_url, headers=headers)
 
-    #RETURN TRUE/FALSE BASED ON WHETHER WE GOT THE EXPECTED RETURN CODE
+    # RETURN TRUE/FALSE BASED ON WHETHER WE GOT THE EXPECTED RETURN CODE
     if response.status_code == 204:
         print('INFO: Successfully removed device', device)
         return True
@@ -562,83 +568,94 @@ def remove_device(device, device_id_only=False):
         return False
 
 
-# Return a list of events matching specified search parameters and/or minimum
-# event id. If neither are provided, all visible events are returned.
-def get_events(search={}, minimum_event_id=0, suspicious=False):
+def get_events(logger, fqdn, key, search={}, minimum_event_id=0, suspicious=False):
+    """
+    Return a list of events matching specified search parameters and/or minimum
+    event id. If neither are provided, all visible events are returned.
+    :param fqdn:
+    :param key:
+    :param search:
+    :param minimum_event_id:
+    :param suspicious:
+    :return:
+    """
 
-    #define HTTP headers for all requests in this method
+    logger.info('started GetEvents')
+
+    # define HTTP headers for all requests in this method
     headers = {'accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': key}
 
-    #list to collect events
+    # list to collect events
     collected_events = []
 
-    #Note that the API method we are calling returns up to 50 events at a time,
-    #and we know we have all events when we get last_id=None back in the response
+    # Note that the API method we are calling returns up to 50 events at a time,
+    # and we know we have all events when we get last_id=None back in the response
 
-    #loop until we have all the events
-    while minimum_event_id != None:
+    # loop until we have all the events
+    while minimum_event_id is not None:
 
-        #calculate request url
+        # calculate request url
         if suspicious:
             request_url = f'https://{fqdn}/api/v1/suspicious-events/search?after_event_id={str(minimum_event_id)}'
         else:
             request_url = f'https://{fqdn}/api/v1/events/search?after_event_id={str(minimum_event_id)}'
 
-        #make request to server, store response
+        logger.info('Request URL: %s', request_url, )
+        # make request to server, store response
         response = requests.post(request_url, headers=headers, json=search)
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as exception:
+            logger.info('URL %s, get respond %s', request_url, exception, )
+            sys.exit(1)
 
-        if debug_mode:
-            print(request_url, '\n returned', response.status_code)
+        # store the returned last_id value
+        minimum_event_id = response.json()['last_id']
+        logger.info('Min Event ID = %s', minimum_event_id,)
 
-        #check HTTP return code, and in case of error exit the method and return empty list
-        if response.status_code != 200:
-            return []
-        else:
-            #store the returned last_id value
-            minimum_event_id = response.json()['last_id']
+        # if we got a none-null last_id back
+        if minimum_event_id is not None:
+            events = response.json()['events']
+            logger.info(events)
+            # append the event(s) from this response to collected_events
+            for event in events:
+                collected_events.append(event)
 
-            #if we got a none-null last_id back
-            if minimum_event_id != None:
-                #then extract the events
-                events = response.json()['events']
-                #append the event(s) from this response to collected_events
-                for event in events:
-                    collected_events.append(event)
-
-    #return the list of collected events
+    # return the list of collected events
     return collected_events
 
 
 # Return a list of suspicious events matching specified search parameters
 # and/or minimum event id. If neither are provided, all visible susipcious
 # events are returned.
-def get_suspicious_events(search={}, minimum_event_id=0):
-    return get_events(suspicious=True, search=search, minimum_event_id=minimum_event_id)
+def get_suspicious_events(logger, fqdn, key, search={}, minimum_event_id=0):
+    return get_events(logger, fqdn, key, suspicious=True, search=search, minimum_event_id=minimum_event_id)
 
 
-#Return a list of all visible Device Groups
-def get_groups(exclude_default_groups=False):
+# Return a list of all visible Device Groups
+def get_groups(fqdn, key, exclude_default_groups=False):
     # Calculate headers and URL
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/groups/'
     # Get Device Groups from server
     response = requests.get(request_url, headers=headers)
-    #Check response code
+    # Check response code
     if response.status_code == 200:
-        groups = response.json() #convert to Python list
-        #optionally remove the default groups before returning the data
+        groups = response.json()  # convert to Python list
+        # optionally remove the default groups before returning the data
         if exclude_default_groups:
-            #Note [:]: syntax on line below to make a copy of list before iterating over it sincer we're going to be removing elements, as per https://stackoverflow.com/questions/7210578/why-does-list-remove-not-behave-as-one-might-expect
+            # Note [:]: syntax on line below to make a copy of list before iterating over it sincer we're going to be removing elements, as per https://stackoverflow.com/questions/7210578/why-does-list-remove-not-behave-as-one-might-expect
             for group in groups[:]:
                 if group['is_default_group']:
                     groups.remove(group)
         return groups
     else:
-        #in case of error getting data, return empty list
+        # in case of error getting data, return empty list
         return []
 
-#Gets a single device
-def get_device(device_id):
+
+# Gets a single device
+def get_device(fqdn, key, device_id):
     # Calculate headers and URL
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/devices/{device_id}'
@@ -646,15 +663,15 @@ def get_device(device_id):
     response = requests.get(request_url, headers=headers)
     # Check response code
     if response.status_code == 200:
-        device = response.json() #convert to Python list
+        device = response.json()  # convert to Python list
         return device
     else:
-        #in case of error getting data, return None
+        # in case of error getting data, return None
         return None
 
-#hides a list of event ids from the GUI and REST API
-def archive_events (ids, unarchive=False, suspicious=False, input_is_ids_only=True):
 
+# hides a list of event ids from the GUI and REST API
+def archive_events(fqdn, key, ids, unarchive=False, suspicious=False, input_is_ids_only=True):
     # if full events were provided, strip out just the ids before proceeding
     if not input_is_ids_only:
         event_ids = []
@@ -678,30 +695,30 @@ def archive_events (ids, unarchive=False, suspicious=False, input_is_ids_only=Tr
     elif suspicious and unarchive:
         request_url = f'https://{fqdn}/api/v1/suspicious-events/actions/unarchive'
 
-    #send request to server
+    # send request to server
     response = requests.post(request_url, headers=headers, json=payload)
 
-    #return true if successful, false otherwise
+    # return true if successful, false otherwise
     return (response.status_code == 204)
 
 
-#hides a list of suspicious event ids from the GUI and REST API
-def archive_suspicious_events(ids, unarchive=False, input_is_ids_only=True):
+# hides a list of suspicious event ids from the GUI and REST API
+def archive_suspicious_events(fqdn, key, ids, unarchive=False, input_is_ids_only=True):
     return archive_events(ids=ids, suspicious=True, input_is_ids_only=input_is_ids_only)
 
 
-#unhides a list of event ids from the GUI and REST API
+# unhides a list of event ids from the GUI and REST API
 def unarchive_events(ids, suspicious=False, input_is_ids_only=True):
     return archive_events(ids=ids, unarchive=True, suspicious=suspicious, input_is_ids_only=input_is_ids_only)
 
 
-#unhides a list of suspicious event ids from the GUI and REST API
+# unhides a list of suspicious event ids from the GUI and REST API
 def unarchive_suspicious_events(ids, input_is_ids_only=True):
     return unarchive_events(ids=ids, suspicious=True, input_is_ids_only=input_is_ids_only)
 
 
-#allows organization of exported data by server-specific folders
-def create_export_folder():
+# allows organization of exported data by server-specific folders
+def create_export_folder(fqdn):
     exported_data_folder_name = f'exported_data_from_{fqdn}'
     # Check if a folder already exists for data exports from this server
     if not os.path.exists(exported_data_folder_name):
@@ -709,18 +726,18 @@ def create_export_folder():
         os.makedirs(exported_data_folder_name)
     return exported_data_folder_name
 
-def get_event(event_id, suspicious=False):
 
-    #define headers
+def get_event(fqdn, key, event_id, suspicious=False):
+    # define headers
     headers = {'accept': 'application/json', 'Authorization': key}
 
-    #calculate request url
+    # calculate request url
     if suspicious:
         request_url = f'https://{fqdn}/api/v1/suspicious-events/{str(event_id)}'
     else:
         request_url = f'https://{fqdn}/api/v1/events/{str(event_id)}'
 
-    #make request, store response
+    # make request, store response
     response = requests.get(request_url, headers=headers)
 
     # based on response code, return event or alternately an error code
@@ -733,15 +750,15 @@ def get_event(event_id, suspicious=False):
         print('ERROR: Unexpected return code', str(response.status_code), 'on request to', request_url)
         return []
 
-def create_policy(name, base_policy_id, comment='', quiet_mode=False):
 
-    #define headers
+def create_policy(fqdn, key, name, base_policy_id, comment='', quiet_mode=False):
+    # define headers
     headers = {'accept': 'application/json', 'Authorization': key}
 
-    #calculate request url
+    # calculate request url
     request_url = f'https://{fqdn}/api/v1/policies/'
 
-    #create the payload
+    # create the payload
     payload = {'name': name, 'comment': comment, 'base_policy_id': base_policy_id}
 
     # Send request to server
@@ -755,15 +772,15 @@ def create_policy(name, base_policy_id, comment='', quiet_mode=False):
         return response
     else:
         print('ERROR: Unexpected return code', response.status_code,
-        'on POST to', request_url, 'with payload\n', payload)
+              'on POST to', request_url, 'with payload\n', payload)
         return None
 
-def delete_policy(policy_id):
 
-    #define headers
+def delete_policy(fqdn, key, policy_id):
+    # define headers
     headers = {'accept': 'application/json', 'Authorization': key}
 
-    #calculate request url
+    # calculate request url
     request_url = f'https://{fqdn}/api/v1/policies/{policy_id}'
 
     # Send request to server
@@ -781,71 +798,80 @@ def delete_policy(policy_id):
         return False
     else:
         print('ERROR: Unexpected return code', response.status_code,
-        'on DELETE to', request_url)
+              'on DELETE to', request_url)
         return False
 
-def export_events(minimum_event_id=0, suspicious=False, flatten_device_info=True):
 
-    events = get_events(minimum_event_id=minimum_event_id, suspicious=suspicious)
+def export_events(logger, fqdn, key, minimum_event_id=0, suspicious=False, flatten_device_info=True):
+    events = get_events(logger, fqdn, key, minimum_event_id=minimum_event_id, suspicious=suspicious)
+
+    logger.info('Started export_event')
 
     if len(events) > 0:
         if flatten_device_info:
-            #flattens recorded_device_info into discreet columns. Examples: recorded_device_info.hostname, recorded_device_info.policy_name
+            # flattens recorded_device_info into discreet columns. Examples: recorded_device_info.hostname, recorded_device_info.policy_name
             events = pandas.json_normalize(events)
         events_df = pandas.DataFrame(events)
         events_df.sort_values(by=['id'], inplace=True)
-        folder_name = create_export_folder()
-        file_name = f'events_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".",1)[0]}.xlsx'
+        folder_name = create_export_folder(fqdn, key)
+        file_name = f'events_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".", 1)[0]}.xlsx'
         if suspicious:
             file_name = f'suspicious_{file_name}'
 
-        #this logic improves resiliency case the product API adds/removes columns from event data
-        export_column_names = ['id', 'status', 'action', 'type', 'trigger', 'threat_severity', 'file_hash', 'deep_classification', 'file_archive_hash', 'path', 'timestamp', 'insertion_timestamp', 'close_timestamp', 'close_trigger', 'last_reoccurrence', 'reoccurrence_count', 'last_action', 'device_id', 'recorded_device_info.os', 'recorded_device_info.mac_address', 'recorded_device_info.hostname', 'recorded_device_info.tag', 'recorded_device_info.group_name', 'recorded_device_info.policy_name', 'recorded_device_info.tenant_name', 'comment', 'mitre_classifications', 'file_size', 'file_status', 'sandbox_status', 'msp_name', 'msp_id', 'tenant_name', 'tenant_id']
+        # this logic improves resiliency case the product API adds/removes columns from event data
+        export_column_names = ['id', 'status', 'action', 'type', 'trigger', 'threat_severity', 'file_hash',
+                               'deep_classification', 'file_archive_hash', 'path', 'timestamp', 'insertion_timestamp',
+                               'close_timestamp', 'close_trigger', 'last_reoccurrence', 'reoccurrence_count',
+                               'last_action', 'device_id', 'recorded_device_info.os',
+                               'recorded_device_info.mac_address', 'recorded_device_info.hostname',
+                               'recorded_device_info.tag', 'recorded_device_info.group_name',
+                               'recorded_device_info.policy_name', 'recorded_device_info.tenant_name', 'comment',
+                               'mitre_classifications', 'file_size', 'file_status', 'sandbox_status', 'msp_name',
+                               'msp_id', 'tenant_name', 'tenant_id']
         events_df_column_names = list(events_df.columns.values)
         columns = []
         for column_name in export_column_names:
             if column_name in events_df_column_names:
                 columns.append(column_name)
 
-        #now that we have what we know is a valid list of coulmns, proceed
+        # now that we have what we know is a valid list of coulmns, proceed
         events_df.to_excel(f'{folder_name}/{file_name}', index=False, sheet_name='Event_Data', columns=columns)
         print('INFO:', len(events), 'events were exported to disk as:', f'{folder_name}/{file_name}')
     else:
         print('WARNING: No events were found on the server')
 
-def export_groups(exclude_default_groups=False):
+def export_groups(fqdn, key, exclude_default_groups=False):
     groups = get_groups(exclude_default_groups=exclude_default_groups)
     groups_df = pandas.DataFrame(groups)
-    folder_name = create_export_folder()
-    file_name = f'groups_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".",1)[0]}.xlsx'
+    folder_name = create_export_folder(fqdn, key)
+    file_name = f'groups_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".", 1)[0]}.xlsx'
     groups_df.to_excel(f'{folder_name}/{file_name}', index=False)
 
 
-def create_tenant(tenant_name, license_limit, msp_name):
-
-    #convert provided msp_name to msp_id
+def create_tenant(fqdn, key, tenant_name, license_limit, msp_name):
+    # convert provided msp_name to msp_id
     msp_id = get_msp_id(msp_name)
 
-    #build payload
+    # build payload
     payload = {'msp_id': msp_id,
-                'name': tenant_name,
-                'license_limit': license_limit }
+               'name': tenant_name,
+               'license_limit': license_limit}
 
-    #calculate headers
+    # calculate headers
     headers = {'Content-Type': 'application/json', 'Authorization': key}
 
-    #calculate URL
+    # calculate URL
     request_url = f'https://{fqdn}/api/v1/multitenancy/tenant/'
 
     # Send request to server
     response = requests.post(request_url, json=payload, headers=headers)
 
     # Check return code and return success or descriptive error
-    if response.status_code == 200: #tenant creation was successful
-        #return value is not particularily useful, therefore we will go
-        #find the newly-created tenant in the full tenants list first so that
-        #we can return a more meaningful/useful value with things like id
-        #and activation tokens
+    if response.status_code == 200:  # tenant creation was successful
+        # return value is not particularily useful, therefore we will go
+        # find the newly-created tenant in the full tenants list first so that
+        # we can return a more meaningful/useful value with things like id
+        # and activation tokens
         tenants = get_tenants()
         for tenant in tenants:
             if tenant['name'] == tenant_name and tenant['msp_id'] == msp_id:
@@ -864,12 +890,11 @@ def get_msp_id(msp_name):
     return msp_id
 
 
-def delete_tenant(tenant_name, msp_name):
-
-    #convert provided msp_name to msp_id
+def delete_tenant(fqdn, key, tenant_name, msp_name):
+    # convert provided msp_name to msp_id
     msp_id = get_msp_id(msp_name)
 
-    #find tenant id
+    # find tenant id
     tenants = get_tenants()
     tenant_id = 0
     for tenant in tenants:
@@ -877,11 +902,11 @@ def delete_tenant(tenant_name, msp_name):
             if tenant['name'] == tenant_name:
                 tenant_id = tenant['id']
 
-    #calculate URL and headers
+    # calculate URL and headers
     request_url = f'https://{fqdn}/api/v1/multitenancy/tenant/{tenant_id}'
     headers = {'Authorization': key}
 
-    #send request to server
+    # send request to server
     response = requests.delete(request_url, headers=headers)
 
     # Check return code and return Success or descriptive error
@@ -898,12 +923,12 @@ def delete_tenant(tenant_name, msp_name):
         print('ERROR: Tried to delete a tenant but active devices still exist!')
         return False
 
-def request_agent_logs(device_id, device_id_only=True):
 
+def request_agent_logs(fqdn, key, device_id, device_id_only=True):
     if not device_id_only:
         device_id = device_id['id']
 
-    #calculate URL and headers
+    # calculate URL and headers
     request_url = f'https://{fqdn}/api/v1/devices/{device_id}/actions/upload-logs'
     headers = {'Authorization': key, 'accept': 'application/json'}
 
@@ -924,16 +949,16 @@ def request_agent_logs(device_id, device_id_only=True):
         print('ERROR: Unexpected return code', response.status_code, 'on POST to', request_url, 'with headers', headers)
         return False
 
-def close_events(event_id_list, open=False):
 
-    #calculate URL, headers, and payload
+def close_events(fqdn, key, event_id_list, open=False):
+    # calculate URL, headers, and payload
     if open:
         request_url = f'https://{fqdn}/api/v1/events/actions/open'
     else:
         request_url = f'https://{fqdn}/api/v1/events/actions/close'
     headers = {'Authorization': key,
-                'accept': 'application/json',
-                'Content-Type': 'application/json'}
+               'accept': 'application/json',
+               'Content-Type': 'application/json'}
     payload = {'ids': event_id_list}
 
     # Send request to server
@@ -950,19 +975,20 @@ def close_events(event_id_list, open=False):
         print('ERROR: Unexpected return code', response.status_code, 'on POST to', request_url)
         return False
 
+
 def open_events(event_id_list):
     return close_events(event_id_list=event_id_list, open=True)
 
-def archive_events(event_id_list, unarchive=False):
 
-    #calculate URL, headers, and payload
+def archive_events(fqdn, key, event_id_list, unarchive=False):
+    # calculate URL, headers, and payload
     if unarchive:
         request_url = f'https://{fqdn}/api/v1/events/actions/unarchive'
     else:
         request_url = f'https://{fqdn}/api/v1/events/actions/archive'
     headers = {'Authorization': key,
-                'accept': 'application/json',
-                'Content-Type': 'application/json'}
+               'accept': 'application/json',
+               'Content-Type': 'application/json'}
     payload = {'ids': event_id_list}
 
     # Send request to server
@@ -979,27 +1005,27 @@ def archive_events(event_id_list, unarchive=False):
         print('ERROR: Unexpected return code', response.status_code, 'on POST to', request_url)
         return False
 
+
 def unarchive_events(event_id_list):
     return archive_events(event_id_list=event_id_list, unarchive=True)
 
 
 # Disable scanning and enforcement on a device
-def disable_device(device, device_id_only=False):
-
-    #PROCESS INPUT
+def disable_device(fqdn, key, device, device_id_only=False):
+    # PROCESS INPUT
     if device_id_only:
-        #the input was the actual device id
+        # the input was the actual device id
         device_id = device
     else:
-        #the input was a device dictionary; extract the device id from it
+        # the input was a device dictionary; extract the device id from it
         device_id = device['id']
 
-    #DISABLE THE DEVICE
+    # DISABLE THE DEVICE
     request_url = f'https://{fqdn}/api/v1/devices/{device_id}/actions/disable'
     headers = {'Authorization': key}
     response = requests.post(request_url, headers=headers)
 
-    #RETURN TRUE/FALSE BASED ON WHETHER WE GOT THE EXPECTED RETURN CODE
+    # RETURN TRUE/FALSE BASED ON WHETHER WE GOT THE EXPECTED RETURN CODE
     if response.status_code == 204:
         print('INFO: Successfully set device', device, 'to be disabled')
         return True
@@ -1009,22 +1035,21 @@ def disable_device(device, device_id_only=False):
 
 
 # Enable scanning and enforcement on a device
-def enable_device(device, device_id_only=False):
-
-    #PROCESS INPUT
+def enable_device(fqdn, key, device, device_id_only=False):
+    # PROCESS INPUT
     if device_id_only:
-        #the input was the actual device id
+        # the input was the actual device id
         device_id = device
     else:
-        #the input was a device dictionary; extract the device id from it
+        # the input was a device dictionary; extract the device id from it
         device_id = device['id']
 
-    #ENABLE THE DEVICE
+    # ENABLE THE DEVICE
     request_url = f'https://{fqdn}/api/v1/devices/{device_id}/actions/enable'
     headers = {'Authorization': key}
     response = requests.post(request_url, headers=headers)
 
-    #RETURN TRUE/FALSE BASED ON WHETHER WE GOT THE EXPECTED RETURN CODE
+    # RETURN TRUE/FALSE BASED ON WHETHER WE GOT THE EXPECTED RETURN CODE
     if response.status_code == 204:
         print('INFO: Successfully set device', device, 'to be enabled')
         return True
@@ -1033,39 +1058,38 @@ def enable_device(device, device_id_only=False):
         return False
 
 
-def get_event_counts_by_device_id(minimum_event_id=0, event_filters={}):
+def get_event_counts_by_device_id(logger, fqdn, key, minimum_event_id=0, event_filters={}):
+    # get event data from server
+    events = get_events(logger, fqdn, key, minimum_event_id=minimum_event_id, search=event_filters)
 
-    #get event data from server
-    events = get_events(minimum_event_id=minimum_event_id, search=event_filters)
-
-    #convert to PivotTable style summary of event count by device id
+    # convert to PivotTable style summary of event count by device id
     event_counts = count_data_by_field(events, 'device_id')
 
-    #return the data
+    # return the data
     return event_counts
 
 
-def export_event_count_by_device_id(minimum_event_id=0, event_filters={}):
-
-    #get events counts
+def export_event_count_by_device_id(fqdn, key, minimum_event_id=0, event_filters={}):
+    # get events counts
     event_counts = get_event_counts_by_device_id(minimum_event_id=minimum_event_id, event_filters=event_filters)
 
-    #above returns a dictionary; the syntax below flattens this into a 2-column dataframe
-    event_counts_df = pandas.DataFrame(list(event_counts.items()),columns = ['device_id','event_count'])
+    # above returns a dictionary; the syntax below flattens this into a 2-column dataframe
+    event_counts_df = pandas.DataFrame(list(event_counts.items()), columns=['device_id', 'event_count'])
 
-    #sort data with highest event count on top
+    # sort data with highest event count on top
     event_counts_df.sort_values(by=['event_count'], ascending=False, inplace=True)
 
-    #calculate (and create if necessary) export folder and file name
-    folder_name = create_export_folder()
-    file_name = f'event_count_by_device_id_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".",1)[0]}.xlsx'
+    # calculate (and create if necessary) export folder and file name
+    folder_name = create_export_folder(fqdn, key)
+    file_name = f'event_count_by_device_id_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}_{fqdn.split(".", 1)[0]}.xlsx'
 
-    #write data to disk
+    # write data to disk
     event_counts_df.to_excel(f'{folder_name}/{file_name}', index=False, sheet_name='Event_Counts')
     print('INFO: event counts were exported to disk as:', f'{folder_name}/{file_name}')
 
-    #return event_counts in case needed for further analysis in another method
+    # return event_counts in case needed for further analysis in another method
     return event_counts
+
 
 def count_data_by_field(data, field_name):
     result = {}
@@ -1076,11 +1100,12 @@ def count_data_by_field(data, field_name):
             result[record[field_name]] = 1
     return result
 
-def is_prevention_policy(policy, exclude_static_analysis=False, exclude_ransomware_behavior=False, exclude_remote_code_injection=False, exclude_arbritrary_shallcode_execution=False):
 
-    verdict = False #start with false until proven otherwise
+def is_prevention_policy(policy, exclude_static_analysis=False, exclude_ransomware_behavior=False,
+                         exclude_remote_code_injection=False, exclude_arbritrary_shallcode_execution=False):
+    verdict = False  # start with false until proven otherwise
 
-    #For windows, require that all [currently exposed] features that Best Practices call for general usage be in prevention
+    # For windows, require that all [currently exposed] features that Best Practices call for general usage be in prevention
     if policy['os'] == 'WINDOWS':
         if policy['prevention_level'] in ('LOW', 'MEDIUM') or exclude_static_analysis:
             if policy['ransomware_behavior'] == 'PREVENT' or exclude_ransomware_behavior:
@@ -1088,29 +1113,30 @@ def is_prevention_policy(policy, exclude_static_analysis=False, exclude_ransomwa
                     if policy['arbitrary_shellcode_execution'] == 'PREVENT' or exclude_arbritrary_shallcode_execution:
                         verdict = True
 
-    #This covers all non-Windows platforms that have a prevention threshold (current and future)
+    # This covers all non-Windows platforms that have a prevention threshold (current and future)
     elif 'prevention_level' in policy.keys():
         if policy['prevention_level'] in ('LOW', 'MEDIUM', 'HIGH') or exclude_static_analysis:
             verdict = True
 
     return verdict
 
-def download_uploaded_file(file_hash):
+
+def download_uploaded_file(fqdn, key, file_hash):
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/events/actions/download-uploaded-file/{file_hash}'
     response = requests.get(request_url, headers=headers)
     if response.status_code == 200:
-        folder_name = create_export_folder()
+        folder_name = create_export_folder(fqdn, key)
         file_name = f'{file_hash}.zip'
-        open(f'{folder_name}/{file_name}','wb').write(response.content)
+        open(f'{folder_name}/{file_name}', 'wb').write(response.content)
         return True
     else:
         print('ERROR: Unexpected status code', response.status_code, 'on GET', request_url)
         return False
 
-def request_malware_sample(event_id):
 
-    #calculate URL and headers
+def request_malware_sample(fqdn, key, event_id):
+    # calculate URL and headers
     headers = {'accept': 'application/json', 'Authorization': key}
     request_url = f'https://{fqdn}/api/v1/devices/actions/request-remote-file-upload/{event_id}'
 

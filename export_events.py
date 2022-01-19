@@ -9,28 +9,44 @@
 # and recreate the problem with a reproducible test case against the raw/pure
 # DI REST API.
 #
+import os
 
-import pandas, datetime
+import pandas as pd, logging, datetime
+from deepinstinct30 import get_events, create_export_folder
+
+today_date = datetime.today().strftime('%y%m%d_%H%M')
+script_folder = os.path.dirname(__file__)
+logfile = str('').join([script_folder, '/',os.path.basename(__file__).split('.')[0], '_', today_date,'.log'])
+logging.basicConfig(filename=logfile, format='%(asctime)s %(message)s', filemode='a', level=logging.INFO)
+logger = logging.getLogger()
+
 
 # Prompt use for D-Appliance Version, validate input, then import appropriate
 # version of the REST API Wrapper
-di_version = ''
-while di_version not in ['3.0', '2.5']:
-    di_version = input('DI Server Version [3.0 | 2.5]? ')
-if di_version == '3.0':
-    import deepinstinct30 as di
-else:
-    import deepinstinct25 as di
+#di_version = ''
+# while di_version not in ['3.0', '2.5']:
+#     di_version = input('DI Server Version [3.0 | 2.5]? ')
+# if di_version == '3.0':
+#     import deepinstinct30 as di
+# else:
+#     import deepinstinct25 as di
 
 # Optional hardcoded config - if not provided, you'll be prompted at runtime
-di.fqdn = 'SERVER-NAME.customers.deepinstinctweb.com'
-di.key = 'API-KEY'
-
+fqdn = 'SERVER-NAME.customers.deepinstinctweb.com'
+key = 'API-KEY'
+minimum_event_id=0
+format_csv = ''
 # Validate config and prompt if not provided above
-while di.fqdn == '' or di.fqdn == 'SERVER-NAME.customers.deepinstinctweb.com':
-    di.fqdn = input('FQDN of DI Server? ')
-while di.key == 'API-KEY':
-    di.key = input('API Key? ')
+while fqdn == '' or fqdn == 'SERVER-NAME.customers.deepinstinctweb.com':
+    fqdn = input('FQDN of DI Server? ')
+while key == 'API-KEY':
+    key = input('API Key? ')
+while minimum_event_id == 0:
+    minimum_event_id = input('Min Event ID? ')
+while format_csv != 'All' or format_csv != 'ResearchTeam':
+    format_csv = input('CSV column format All or ResearchTeam? ')
+
+logger.info('URL: %s, min eventID: %s', fqdn, minimum_event_id)
 
 # ==============================================================================
 # THIS SECTION SHOWS A SERIES OF EXAMPLES OF HOW TO USE di.get_events TO GET
@@ -38,7 +54,9 @@ while di.key == 'API-KEY':
 # --> Leave exactly 1 call to di.get_events uncommented
 
 # All events
-events = di.get_events()
+
+events = get_events(logger, fqdn, key, minimum_event_id=minimum_event_id)
+
 #events = di.get_all_events(max_event_id=9999) #use alternate method to include Script Control events if desired
 
 # Example of how to filter on minimum event_id
@@ -86,20 +104,34 @@ events = di.get_events()
 # ==============================================================================
 
 if len(events) > 0:
-    # Convert event data to a Pandas data frame for easier manipulation and export
-    events_df = pandas.DataFrame(events)
-    # Sort the data frame by event id
-    events_df.sort_values(by=['id'], inplace=True)
-
-    # Export the data frame to disk in Excel format
-
-    # Calculate folder and file name
-    folder_name = di.create_export_folder()
-    file_name = f'events_{datetime.datetime.today().strftime("%Y-%m-%d_%H.%M")}.xlsx'
-
-    # Write data to disk
-    events_df.to_excel(f'{folder_name}/{file_name}', index=False)
-    print('INFO:', len(events), 'events were exported to disk as:', f'{folder_name}/{file_name}')
-
+    folder_name = create_export_folder(fqdn)
+    export_file_name = str().join(['events_', fqdn, '_', today_date, 'csv' ])
+    export_file_name = str('/').join([folder_name, export_file_name])
+    if format_csv == 'All':
+        logger.info('Extract events in the All format')
+        events_df = pd.DataFrame(events)
+        # Sort the data frame by event id3
+        events_df.sort_values(by=['id'], inplace=True)
+        # Write data to disk
+        events_df.to_csv(export_file_name, index=False)
+    else:
+        logger.info('Extract events in ResearchTeam format')
+        events = pd.json_normalize(events)
+        events_df = pd.DataFrame(events)
+        events_df.sort_values(by=['id'], inplace=True)
+        export_column_names = ['id', 'device_id', 'timestamp', 'insertion_timestamp', 'status',
+       'msp_name', 'msp_id', 'tenant_name', 'tenant_id',
+       'mitre_classifications', 'type', 'trigger', 'action',
+       'reoccurrence_count', 'file_hash', 'file_archive_hash', 'path',
+       'file_size', 'threat_severity', 'file_status', 'sandbox_status',
+       'recorded_device_info.os', 'recorded_device_info.mac_address',
+       'recorded_device_info.hostname', 'recorded_device_info.tag',
+       'recorded_device_info.group_name', 'recorded_device_info.policy_name',
+       'recorded_device_info.tenant_name', 'last_reoccurrence', 'last_action',
+       'deep_classification', 'close_timestamp', 'close_trigger']
+        df1 = events_df[export_column_names]
+        events_df.to_csv(export_file_name, index=False)
+    logger.info('%s events were exported to disk as: %s', str(len(events)), export_file_name)
 else:  #No events were found
+    logger.info('No events were found on the server')
     print('No events were found on the server')
