@@ -10,8 +10,8 @@
 # DI REST API.
 #
 import os
-
-import pandas as pd, logging, datetime
+from datetime import datetime
+import pandas as pd, logging
 from deepinstinct30 import get_events, create_export_folder
 
 today_date = datetime.today().strftime('%y%m%d_%H%M')
@@ -43,7 +43,7 @@ while key == 'API-KEY':
     key = input('API Key? ')
 while minimum_event_id == 0:
     minimum_event_id = input('Min Event ID? ')
-while format_csv != 'All' or format_csv != 'ResearchTeam':
+while format_csv == '':
     format_csv = input('CSV column format All or ResearchTeam? ')
 
 logger.info('URL: %s, min eventID: %s', fqdn, minimum_event_id)
@@ -105,7 +105,7 @@ events = get_events(logger, fqdn, key, minimum_event_id=minimum_event_id)
 
 if len(events) > 0:
     folder_name = create_export_folder(fqdn)
-    export_file_name = str().join(['events_', fqdn, '_', today_date, 'csv' ])
+    export_file_name = str().join(['events_', fqdn, '_', today_date, '.csv'])
     export_file_name = str('/').join([folder_name, export_file_name])
     if format_csv == 'All':
         logger.info('Extract events in the All format')
@@ -128,9 +128,9 @@ if len(events) > 0:
        'recorded_device_info.hostname', 'recorded_device_info.tag',
        'recorded_device_info.group_name', 'recorded_device_info.policy_name',
        'recorded_device_info.tenant_name', 'last_reoccurrence', 'last_action',
-       'deep_classification', 'close_timestamp', 'close_trigger']
+       'close_timestamp', 'close_trigger']
         df1 = events_df[export_column_names]
-        events_df.to_csv(export_file_name, index=False)
+        df1.to_csv(export_file_name, index=False)
     logger.info('%s events were exported to disk as: %s', str(len(events)), export_file_name)
 else:  #No events were found
     logger.info('No events were found on the server')

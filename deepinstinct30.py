@@ -616,7 +616,7 @@ def get_events(logger, fqdn, key, search={}, minimum_event_id=0, suspicious=Fals
         # if we got a none-null last_id back
         if minimum_event_id is not None:
             events = response.json()['events']
-            logger.info(events)
+            #logger.info(events)
             # append the event(s) from this response to collected_events
             for event in events:
                 collected_events.append(event)
